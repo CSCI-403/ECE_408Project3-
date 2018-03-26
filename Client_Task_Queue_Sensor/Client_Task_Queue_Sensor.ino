@@ -1,3 +1,24 @@
+#include <WiFi.h>
+#include <WiFiUdp.h>
+
+/* WiFi network name and password */
+const char* ssid = "";
+const char* password =  "";
+
+// IP address to send UDP data to.
+// it can be ip address of the server or 
+// a network broadcast address
+// here is broadcast address
+const char * udpAddress = "192.25.1.255";
+const int udpPort = 44444;
+
+//create UDP instance
+WiFiUDP udp;
+
+// -----End of Wifi---- 
+
+
+
 //define pin varaibles 
 
 const int trigPin = 25;
@@ -14,7 +35,6 @@ long distance ;
 // create a Queue handler 
 QueueHandle_t  xQueueENCODER_Readings;
 
-String stringOne = " ";
 int x = 0 ; 
 
 // Store data for  time and distance 
@@ -23,7 +43,7 @@ int x = 0 ;
   {
     int    Current_Day ;
     long  Current_Distance;
-  } ENCODER_MOTION_Read;
+  } ;
 
 
   // two instances of structs 
@@ -32,10 +52,35 @@ int x = 0 ;
 
   
 void setup() {
-pinMode(trigPin,OUTPUT);
+ Serial.begin(115200);
+
+ 
+//Connect to the WiFi network
+   WiFi.begin(ssid, password);
+  Serial.println("");
+
+  // Wait for connection
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.print("Connected to ");
+  Serial.println(ssid);
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+
+  //This initializes udp and transfer buffer
+  udp.begin(udpPort);
+
+//-------End of Wifi setup -----------
+
+
+
+
+ pinMode(trigPin,OUTPUT);
  pinMode(echoPin,INPUT);
 
- Serial.begin(115200);
  delay(1000);
  
 // create a struct queue of size 10 
@@ -47,44 +92,6 @@ pinMode(trigPin,OUTPUT);
       Serial.println("ERROR Creating queue");
     }
      
-/*
-/// giving time for the sensor to collect data since is I/O bound 
-for( int i = 0  ; i < 10 ; i++ ){
-      
-        ENCODER_MOTION_Read.Current_Day= 1000 ;
-           
-            //clears TrigPin
-            digitalWrite(trigPin,LOW); 
-            delayMicroseconds(2); 
-
-              //sets the trigPin HIGH 
-            digitalWrite(trigPin, HIGH) ;
-            delayMicroseconds(10); 
-             digitalWrite(trigPin, LOW) ;
-
-            // Reads echoPin , returns duration 
-            duration = pulseIn(echoPin , HIGH); 
-               
-
-            // calculate distance  
-            distance = duration*0.034/2 ;
-        
-        Serial.print("Initial distance:");
-        Serial.println(distance);
-         
-        ENCODER_MOTION_Read.Current_Distance = distance;
-
-        //send data to queue  
-       xQueueSend(xQueueENCODER_Readings,(void *) &ENCODER_MOTION_Read, portMAX_DELAY );
-       
-}
-*/
-
-
-
-
-    
- 
  
   xTaskCreate(
                     taskOne,          /* Task function. */
@@ -176,36 +183,31 @@ void taskOne( void * parameter )
 void taskTwo( void * parameter)
 {
  
- //String stringOne = " ";
   // Infininite loop 
   for(  ; ; ){
     
    if (xQueueReceive ( xQueueENCODER_Readings ,  &(ENCODER_Received) , portMAX_DELAY ) ){
+    
+       udp.beginPacket(udpAddress, udpPort);
       
-      
-      if  ( x  < 10 ) {
-    stringOne+= String (ENCODER_Received.Current_Day);
-    //Serial.print(ENCODER_Received.Current_Day);
-    //Serial.print(" ");
-    stringOne.concat(" ");
-    //Serial.print(ENCODER_Received.Current_Distance);
-     stringOne.concat(ENCODER_Received.Current_Distance);
-     //Serial.print("|");
-      stringOne.concat("|");
-      Serial.print(stringOne);
+      if  ( x  < 1) {
+        udp.print(" Day: ");
+        udp.print(ENCODER_Received.Current_Day);
+        //Serial.println(ENCODER_Received.Current_Day);
+        udp.print(" Distance: ");
+        udp.print(ENCODER_Received.Current_Distance);
+        //Serial.println(ENCODER_Received.Current_Distance);
+        // end packet 
+       udp.endPacket();
         x++; 
       }
 
      else{
+       // end packet 
+      // udp.endPacket();
 
-         // print 
-         Serial.println("");
-         
-         // reset counter 
-         x = 0 ; 
-         
-        // empty buffer 
-         String stringOne = "";
+       // reset counter 
+       x = 0 ; 
      }
    
    }
